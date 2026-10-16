@@ -37,6 +37,9 @@ param
     [Alias("m")]
     [switch]$mirror,
 
+    [Parameter(HelpMessage = 'Fix the PiP miniplayer growing every time it is opened (issue #902): keeps Spotify''s miniplayer position/size restore experiment force-enabled (disabling it is what makes the window grow) and installs a resize guard helper.')]
+    [switch]$miniplayer_fix,
+
     [Parameter(HelpMessage = "Developer mode activation.")]
     [Alias("dev")]
     [switch]$devtools,
@@ -2181,6 +2184,16 @@ function Helper($paramname, [switch]$CheckOnly) {
 
             # temporarily disable collapsing right sidebar
             Move-Json -n 'PeekNpv' -t $Enable -f $Disable
+
+            # PiP miniplayer growing on every open (issue #902): on 1.3.4.x/Windows the
+            # growth only stops when enablePiPMiniPlayerPositionRestore is ENABLED; with
+            # the experiment disabled (the stock default) the window grows on every
+            # close/reopen cycle. The entry ships in EnableExp, so with -miniplayer_fix
+            # it is left there (force-enabled); without the flag it is removed to keep
+            # stock behaviour.
+            if (!$miniplayer_fix -and $Enable.PSObject.Properties.Name -contains 'MiniPlayerPositionRestore') {
+                Remove-Json -j $Enable -p 'MiniPlayerPositionRestore'
+            }
 
             if ($podcast_off) { Move-Json -n 'HomePin' -t $Enable -f $Disable }
 
@@ -5219,6 +5232,7 @@ function Get-SpotXResources {
         CheckVersion = $null
         Section = $null
         Goofy = $null
+        MiniplayerFix = $null
         LyricsRules = $null
         LyricsColors = $null
         Login = $null
@@ -5235,6 +5249,7 @@ function Get-SpotXResources {
         @{ Name = 'CheckVersion'; Path = '/js-helper/checkVersion.js'; Enabled = !$sendversion_off },
         @{ Name = 'Section'; Path = '/js-helper/sectionBlock.js'; Enabled = $needsSection },
         @{ Name = 'Goofy'; Path = '/js-helper/goofyHistory.js'; Enabled = $urlform_goofy -and $idbox_goofy },
+        @{ Name = 'MiniplayerFix'; Path = '/js-helper/miniplayerFix.js'; Enabled = [bool]$miniplayer_fix },
         @{ Name = 'LyricsRules'; Path = '/css-helper/lyrics-color/rules.css'; Enabled = [bool]$lyrics_stat },
         @{ Name = 'LyricsColors'; Path = '/css-helper/lyrics-color/colors.css'; Enabled = [bool]$lyrics_stat }
     )
@@ -5682,6 +5697,15 @@ if ($test_spa) {
 
         if ($checkVersion -ne $null) {
             injection -p $xpui_spa_patch -f "spotx-helper" -n "checkVersion.js" -c $checkVersion
+        }
+    }
+
+    # Fix PiP miniplayer growing on every open (#902)
+    if ($miniplayer_fix) {
+        $miniplayerFix = $resources.MiniplayerFix
+
+        if ($miniplayerFix -ne $null) {
+            injection -p $xpui_spa_patch -f "spotx-helper" -n "miniplayerFix.js" -c $miniplayerFix
         }
     }
 
