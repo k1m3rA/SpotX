@@ -37,7 +37,7 @@ param
     [Alias("m")]
     [switch]$mirror,
 
-    [Parameter(HelpMessage = 'Fix the PiP miniplayer growing every time it is opened (issue #902): disables Spotify''s broken miniplayer position/size restore experiment and installs a resize guard helper.')]
+    [Parameter(HelpMessage = 'Fix the PiP miniplayer growing every time it is opened (issue #902): keeps Spotify''s miniplayer position/size restore experiment force-enabled (disabling it is what makes the window grow) and installs a resize guard helper.')]
     [switch]$miniplayer_fix,
 
     [Parameter(HelpMessage = 'GitHub owner to fetch SpotX resources from.')]
@@ -2198,11 +2198,13 @@ function Helper($paramname, [switch]$CheckOnly) {
             # temporarily disable collapsing right sidebar
             Move-Json -n 'PeekNpv' -t $Enable -f $Disable
 
-            # disable broken PiP miniplayer position/size restore (causes the miniplayer
-            # to grow on every open, issue #902) when -miniplayer_fix is used
-            if ($Enable.PSObject.Properties.Name -contains 'MiniPlayerPositionRestore') {
-                if ($miniplayer_fix) { Move-Json -n 'MiniPlayerPositionRestore' -t $Enable -f $Disable }
-                else { Remove-Json -j $Enable -p 'MiniPlayerPositionRestore' }
+            # PiP miniplayer growing on every open (issue #902): on 1.3.4.x/Windows the
+            # growth only stops when enablePiPMiniPlayerPositionRestore is ENABLED
+            # (verified on Miguel's machine: force-disabling it makes the window grow
+            # again). The entry ships in EnableExp, so the fix is to leave it there;
+            # without -miniplayer_fix it is removed to keep stock behaviour.
+            if (!$miniplayer_fix -and $Enable.PSObject.Properties.Name -contains 'MiniPlayerPositionRestore') {
+                Remove-Json -j $Enable -p 'MiniPlayerPositionRestore'
             }
 
             if ($podcast_off) { Move-Json -n 'HomePin' -t $Enable -f $Disable }
