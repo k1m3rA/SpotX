@@ -37,7 +37,7 @@ param
     [Alias("m")]
     [switch]$mirror,
 
-    [Parameter(HelpMessage = 'Fix the PiP miniplayer growing every time it is opened (issue #902).')]
+    [Parameter(HelpMessage = 'Fix the PiP miniplayer growing every time it is opened (issue #902): disables Spotify''s broken miniplayer position/size restore experiment and installs a resize guard helper.')]
     [switch]$miniplayer_fix,
 
     [Parameter(HelpMessage = 'GitHub owner to fetch SpotX resources from.')]
@@ -2197,6 +2197,10 @@ function Helper($paramname, [switch]$CheckOnly) {
 
             # temporarily disable collapsing right sidebar
             Move-Json -n 'PeekNpv' -t $Enable -f $Disable
+
+            # disable broken PiP miniplayer position/size restore (causes the miniplayer
+            # to grow on every open, issue #902) when -miniplayer_fix is used
+            if ($miniplayer_fix) { Move-Json -n 'MiniPlayerPositionRestore' -t $Disable -f $Enable }
 
             if ($podcast_off) { Move-Json -n 'HomePin' -t $Enable -f $Disable }
 
