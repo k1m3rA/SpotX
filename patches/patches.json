@@ -1468,6 +1468,15 @@
                     "to": ""
                 }
             },
+            "MiniPlayerPositionRestore": {
+                "name": "enablePiPMiniPlayerPositionRestore",
+                "description": "Enable restoring saved position and size when opening the PiP miniplayer",
+                "native_description": "Enable restoring saved position and size when opening the PiP miniplayer",
+                "version": {
+                    "fr": "1.2.32",
+                    "to": ""
+                }
+            },
             "PremiumUserForMiniPlayer": {
                 "name": "enablePremiumUserForMiniPlayer",
                 "description": "Enables premium user flag for mini player",
