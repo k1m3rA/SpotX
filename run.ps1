@@ -2200,7 +2200,10 @@ function Helper($paramname, [switch]$CheckOnly) {
 
             # disable broken PiP miniplayer position/size restore (causes the miniplayer
             # to grow on every open, issue #902) when -miniplayer_fix is used
-            if ($miniplayer_fix) { Move-Json -n 'MiniPlayerPositionRestore' -t $Disable -f $Enable }
+            if ($Enable.PSObject.Properties.Name -contains 'MiniPlayerPositionRestore') {
+                if ($miniplayer_fix) { Move-Json -n 'MiniPlayerPositionRestore' -t $Enable -f $Disable }
+                else { Remove-Json -j $Enable -p 'MiniPlayerPositionRestore' }
+            }
 
             if ($podcast_off) { Move-Json -n 'HomePin' -t $Enable -f $Disable }
 
