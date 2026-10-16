@@ -37,6 +37,18 @@ param
     [Alias("m")]
     [switch]$mirror,
 
+    [Parameter(HelpMessage = 'Fix the PiP miniplayer growing every time it is opened (issue #902).')]
+    [switch]$miniplayer_fix,
+
+    [Parameter(HelpMessage = 'GitHub owner to fetch SpotX resources from.')]
+    [string]$Owner = 'SpotX-Official',
+
+    [Parameter(HelpMessage = 'GitHub repository to fetch SpotX resources from.')]
+    [string]$Repository = 'SpotX',
+
+    [Parameter(HelpMessage = 'GitHub branch or ref to fetch SpotX resources from.')]
+    [string]$Branch = 'main',
+
     [Parameter(HelpMessage = "Developer mode activation.")]
     [Alias("dev")]
     [switch]$devtools,
@@ -406,14 +418,15 @@ function Get-Link {
     param (
         [Alias("e")]
         [string]$endlink,
-        [string]$Owner = "SpotX-Official",
-        [string]$Repository = "SpotX"
+        [string]$Owner = $script:Owner,
+        [string]$Repository = $script:Repository,
+        [string]$Branch = $script:Branch
     )
 
     $pagesOwner = $Owner.ToLowerInvariant()
     switch ($mirror) {
         $true { return "https://$pagesOwner.github.io/$Repository" + $endlink }
-        default { return "https://raw.githubusercontent.com/$Owner/$Repository/main" + $endlink }
+        default { return "https://raw.githubusercontent.com/$Owner/$Repository/$Branch" + $endlink }
     }
 }
 
@@ -618,7 +631,7 @@ function Resolve-SpotifyInstallerVersionFromManifest {
 $spotifyDownloadBaseUrl = "https://loadspot.amd64fox1.workers.dev/download"
 $spotifyTemporaryDownloadBaseUrl = "https://loadspot.amd64fox1.workers.dev/temporary-download"
 $spotifyTemporaryDownloadVersion = "1.2.86.502.g8cd7fb22"
-$spotifyVersionsManifestUrl = Get-Link -e "/table/versions.json" -Owner "LoaderSpot" -Repository "table"
+$spotifyVersionsManifestUrl = Get-Link -e "/table/versions.json" -Owner "LoaderSpot" -Repository "table" -Branch "main"
 $systemArchitecture = Get-SystemArchitecture
 
 $match_v = "^(?<version>\d+\.\d+\.\d+(?:\.\d+(?:\.g[0-9a-f]+)?)?)(?:-\d+)?$"
@@ -5219,6 +5232,7 @@ function Get-SpotXResources {
         CheckVersion = $null
         Section = $null
         Goofy = $null
+        MiniplayerFix = $null
         LyricsRules = $null
         LyricsColors = $null
         Login = $null
@@ -5235,6 +5249,7 @@ function Get-SpotXResources {
         @{ Name = 'CheckVersion'; Path = '/js-helper/checkVersion.js'; Enabled = !$sendversion_off },
         @{ Name = 'Section'; Path = '/js-helper/sectionBlock.js'; Enabled = $needsSection },
         @{ Name = 'Goofy'; Path = '/js-helper/goofyHistory.js'; Enabled = $urlform_goofy -and $idbox_goofy },
+        @{ Name = 'MiniplayerFix'; Path = '/js-helper/miniplayerFix.js'; Enabled = [bool]$miniplayer_fix },
         @{ Name = 'LyricsRules'; Path = '/css-helper/lyrics-color/rules.css'; Enabled = [bool]$lyrics_stat },
         @{ Name = 'LyricsColors'; Path = '/css-helper/lyrics-color/colors.css'; Enabled = [bool]$lyrics_stat }
     )
@@ -5682,6 +5697,15 @@ if ($test_spa) {
 
         if ($checkVersion -ne $null) {
             injection -p $xpui_spa_patch -f "spotx-helper" -n "checkVersion.js" -c $checkVersion
+        }
+    }
+
+    # Fix PiP miniplayer growing on every open (#902)
+    if ($miniplayer_fix) {
+        $miniplayerFix = $resources.MiniplayerFix
+
+        if ($miniplayerFix -ne $null) {
+            injection -p $xpui_spa_patch -f "spotx-helper" -n "miniplayerFix.js" -c $miniplayerFix
         }
     }
 
