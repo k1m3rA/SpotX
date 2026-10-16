@@ -159,6 +159,9 @@ param
     [switch]$old_lyrics
 )
 
+# Capture source settings: inside `& { ... }` (iex/irm usage) `$script:` is not this scope.
+$SpotXSource = @{ Owner = $Owner; Repository = $Repository; Branch = $Branch }
+
 # Ignore errors from `Stop-Process`
 $PSDefaultParameterValues['Stop-Process:ErrorAction'] = [System.Management.Automation.ActionPreference]::SilentlyContinue
 
@@ -418,9 +421,9 @@ function Get-Link {
     param (
         [Alias("e")]
         [string]$endlink,
-        [string]$Owner = $script:Owner,
-        [string]$Repository = $script:Repository,
-        [string]$Branch = $script:Branch
+        [string]$Owner = $SpotXSource.Owner,
+        [string]$Repository = $SpotXSource.Repository,
+        [string]$Branch = $SpotXSource.Branch
     )
 
     $pagesOwner = $Owner.ToLowerInvariant()
