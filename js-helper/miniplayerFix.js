@@ -1,102 +1,58 @@
-// SpotX helper: fix for the PiP miniplayer growing every time it is opened
-// (SpotX-Official/SpotX issue #902, seen on Spotify 1.3.4.x / Windows).
+// SpotX helper: guard for the PiP miniplayer growing every time it is opened
+// (SpotX-Official/SpotX issue #902, Spotify 1.3.4.x / Windows).
 //
-// Root cause: when the client restores the saved miniplayer window size, it
-// feeds the previously saved *outer* window size (on scaled displays possibly
-// physical pixels) back into documentPictureInPicture.requestWindow(), which
-// expects a *content* size in CSS pixels. Every reopen therefore adds the
-// window chrome / DPI scale again, so the miniplayer keeps growing until it
-// fills the screen.
+// Root cause (desktop 1.3.4.x): the miniplayer window is always opened with a
+// FIXED size (300x300 audio / 425x300 video), so opening it is not what makes
+// it grow. The growth comes from Spotify's own geometry restore: when the
+// "enablePiPMiniPlayerPositionRestore" experiment is on, the client restores
+// the saved window geometry right after opening with
+// pipWindow.resizeTo(savedWidth, savedHeight), but the saved values are the
+// window's OUTER size (outerWidth/outerHeight stored on pagehide) while CEF
+// applies resizeTo() to a different size basis, so every close/reopen cycle
+// re-saves a larger size and the window keeps growing.
 //
-// This helper wraps documentPictureInPicture.requestWindow() and always
-// reopens the miniplayer with the last real content size reported by the PiP
-// window itself (tracked via its resize events), capped to the visible
-// screen. Sizes are kept per aspect mode (square = audio, wide = video) and
-// persisted in localStorage so they survive restarts. No minified xpui code
-// is touched, and if Spotify sizes the window correctly the stored values
-// simply match what Spotify would have requested.
+// The main fix is done by the installer: with -miniplayer_fix, SpotX adds
+// enablePiPMiniPlayerPositionRestore to the disabled experiments, so the
+// broken restore code never runs (the miniplayer simply opens at its default
+// size and position instead of remembering them).
+//
+// This helper is only the safety net: it wraps the PiP window's resizeTo()
+// and clamps any requested size to 90% of the screen, so even if the
+// experiment cannot be disabled on some future version, the window can never
+// take over the screen. Normal miniplayer sizes (300-500px) never hit the
+// cap, and manual resizing with the mouse is not affected at all.
 (function () {
     'use strict';
 
     if (!('documentPictureInPicture' in window)) return;
 
     var pip = window.documentPictureInPicture;
-    if (!pip || typeof pip.requestWindow !== 'function') return;
-    if (pip.__spotxMiniplayerSizeFix) return; // already installed
-    pip.__spotxMiniplayerSizeFix = true;
+    if (!pip || typeof pip.addEventListener !== 'function') return;
+    if (pip.__spotxMiniplayerGrowthGuard) return; // already installed
+    pip.__spotxMiniplayerGrowthGuard = true;
 
-    var STORE_KEY = 'spotx:miniplayerFix:size:v1';
-    var SCREEN_MARGIN = 0.9; // never open bigger than 90% of the available screen
+    var SCREEN_MARGIN = 0.9; // never let a scripted resize exceed 90% of the screen
 
-    function loadSizes() {
-        try {
-            var raw = localStorage.getItem(STORE_KEY);
-            return raw ? JSON.parse(raw) : {};
-        } catch (e) {
-            return {};
-        }
-    }
-
-    function saveSizes(sizes) {
-        try {
-            localStorage.setItem(STORE_KEY, JSON.stringify(sizes));
-        } catch (e) {
-            // storage full or blocked: the fix still works for this session
-        }
-    }
-
-    // audio miniplayer is ~300x300, video is ~425x300; keep one size per mode
-    function bucketOf(width, height) {
-        if (!width || !height) return 'default';
-        return width / height > 1.25 ? 'wide' : 'square';
-    }
-
-    function clampToScreen(value, avail) {
+    function cap(value, avail) {
+        if (typeof value !== 'number' || !isFinite(value) || value <= 0) return value;
         var max = Math.floor(avail * SCREEN_MARGIN);
-        return Math.max(1, Math.min(value, max));
+        return Math.min(value, max);
     }
 
-    function rememberWindow(win, bucket) {
-        if (!win) return;
-        var save = function () {
-            if (win.closed) return;
-            var w = win.innerWidth;
-            var h = win.innerHeight;
-            if (!w || !h) return;
-            var sizes = loadSizes();
-            sizes[bucket || bucketOf(w, h)] = { width: w, height: h };
-            saveSizes(sizes);
-        };
-        // baseline right after open, then follow user resizes (debounced)
-        save();
-        var timer = null;
-        win.addEventListener('resize', function () {
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(save, 250);
-        });
-    }
-
-    var originalRequestWindow = pip.requestWindow.bind(pip);
-
-    pip.requestWindow = function (options) {
-        options = options || {};
-
-        var bucket = bucketOf(options.width, options.height);
-        var sizes = loadSizes();
-        var saved = sizes[bucket] || sizes.default;
-
-        if (saved && saved.width && saved.height) {
-            options.width = saved.width;
-            options.height = saved.height;
+    pip.addEventListener('enter', function (event) {
+        var win = event.window;
+        if (!win || win.__spotxResizeGuard) return;
+        try {
+            var originalResizeTo = win.resizeTo.bind(win);
+            win.resizeTo = function (width, height) {
+                return originalResizeTo(
+                    cap(width, window.screen.availWidth || width),
+                    cap(height, window.screen.availHeight || height)
+                );
+            };
+            win.__spotxResizeGuard = true;
+        } catch (e) {
+            // window object not extensible: the experiment fix still applies
         }
-        if (options.width && options.height) {
-            options.width = clampToScreen(options.width, screen.availWidth || options.width);
-            options.height = clampToScreen(options.height, screen.availHeight || options.height);
-        }
-
-        return Promise.resolve(originalRequestWindow(options)).then(function (win) {
-            rememberWindow(win, bucket);
-            return win;
-        });
-    };
+    });
 })();
