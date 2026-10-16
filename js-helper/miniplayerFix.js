@@ -1,20 +1,14 @@
 // SpotX helper: guard for the PiP miniplayer growing every time it is opened
 // (SpotX-Official/SpotX issue #902, Spotify 1.3.4.x / Windows).
 //
-// Root cause (desktop 1.3.4.x): the miniplayer window is always opened with a
-// FIXED size (300x300 audio / 425x300 video), so opening it is not what makes
-// it grow. The growth comes from Spotify's own geometry restore: when the
-// "enablePiPMiniPlayerPositionRestore" experiment is on, the client restores
-// the saved window geometry right after opening with
-// pipWindow.resizeTo(savedWidth, savedHeight), but the saved values are the
-// window's OUTER size (outerWidth/outerHeight stored on pagehide) while CEF
-// applies resizeTo() to a different size basis, so every close/reopen cycle
-// re-saves a larger size and the window keeps growing.
-//
-// The main fix is done by the installer: with -miniplayer_fix, SpotX adds
-// enablePiPMiniPlayerPositionRestore to the disabled experiments, so the
-// broken restore code never runs (the miniplayer simply opens at its default
-// size and position instead of remembering them).
+// Observed on 1.3.4.258/Windows: the miniplayer window opens at a FIXED size
+// (300x300 audio / 425x300 video) and then grows on every close/reopen cycle
+// when the "enablePiPMiniPlayerPositionRestore" experiment is DISABLED (the
+// stock default). With the experiment ENABLED, the client restores the saved
+// window geometry right after opening via pipWindow.resizeTo() and the window
+// keeps its size. The installer part of the fix (-miniplayer_fix) therefore
+// keeps that experiment force-enabled through EnableExp; moving it to the
+// disabled experiments is what makes the miniplayer grow.
 //
 // This helper is only the safety net: it wraps the PiP window's resizeTo()
 // and clamps any requested size to 90% of the screen, so even if the
